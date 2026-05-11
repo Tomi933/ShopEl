@@ -1,8 +1,9 @@
 package UI;
 
+import UI.admin.AdminLoginDialog;
 import core.Store;
 import main.Dispatcher;
-
+ 
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
@@ -18,6 +19,7 @@ public class HeaderPanel {
     private final Dispatcher dispatcher;
     private final CardLayout cardLayout;
     private final JPanel cardContainer;
+    private JFrame frame;
 
     private JTextField searchField;
     private JComboBox<String> categoryBox;
@@ -92,6 +94,16 @@ public class HeaderPanel {
         JButton cartBtn = navButton("Кошик");
         cartBtn.addActionListener(e -> cardLayout.show(cardContainer, "cart"));
 
+        JButton adminBtn = navButton("Адмін");
+        adminBtn.setForeground(colors.ACCENT2);
+        adminBtn.addActionListener(e -> {
+            AdminLoginDialog dialog = new AdminLoginDialog(frame, colors);
+            dialog.setVisible(true);
+            if (dialog.isAccepted()) {
+                cardLayout.show(cardContainer, "admin");
+            }
+        });
+        
         cartBadge = new JLabel("0");
         cartBadge.setFont(new Font("Segoe UI", Font.BOLD, 10));
         cartBadge.setForeground(Color.WHITE);
@@ -104,6 +116,7 @@ public class HeaderPanel {
         nav.setBackground(colors.PANEL_BG);
         nav.add(catalogBtn);
         nav.add(cartBtn);
+        nav.add(adminBtn);
         nav.add(cartBadge);
         return nav;
     }
@@ -127,8 +140,8 @@ public class HeaderPanel {
     // ── Getters для StoreApp ────────────────────────────────────
     public String getSearchText() { return searchField.getText(); }
     public String getSelectedCategory() { return (String) categoryBox.getSelectedItem(); }
-    public void   setCategoryItem(String cat) { categoryBox.setSelectedItem(cat); }
-    public void   refreshBadge(int count) {
+    public void setCategoryItem(String cat) { categoryBox.setSelectedItem(cat); }
+    public void refreshBadge(int count) {
         cartBadge.setText(String.valueOf(count));
         cartBadge.setVisible(count > 0);
     }

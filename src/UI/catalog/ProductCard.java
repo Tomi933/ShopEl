@@ -55,12 +55,23 @@ public class ProductCard {
         JLabel img = new JLabel();
         img.setHorizontalAlignment(SwingConstants.CENTER);
         img.setPreferredSize(new Dimension(220, 160));
-        img.setBackground(new Color(245, 247, 255));
         img.setOpaque(true);
+
+        boolean outOfStock = p.getQuantity() <= 0;
+        img.setBackground(outOfStock ? new Color(200, 200, 210) : new Color(245, 247, 255));
+
         try {
             URL url = getClass().getResource("/" + p.getImagePath());
             if (url != null) {
-                Image scaled = new ImageIcon(url).getImage().getScaledInstance(160, 150, Image.SCALE_SMOOTH);
+                Image raw    = new ImageIcon(url).getImage();
+                Image scaled = raw.getScaledInstance(160, 150, Image.SCALE_SMOOTH);
+                if (outOfStock) {
+                    // Накладаємо сірий фільтр через GrayFilter
+                    scaled = GrayFilter.createDisabledImage(
+                            new ImageIcon(scaled).getImage() != null
+                            ? new ImageIcon(scaled).getImage()
+                            : raw.getScaledInstance(160, 150, Image.SCALE_SMOOTH));
+                }
                 img.setIcon(new ImageIcon(scaled));
             } else {
                 img.setText("[ фото ]");
@@ -69,6 +80,15 @@ public class ProductCard {
         } catch (Exception ex) {
             img.setText("[ фото ]");
             img.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        }
+
+        // Напис "Немає в наявності" поверх картинки
+        if (outOfStock) {
+            img.setText("<html><center><b>Немає<br>в наявності</b></center></html>");
+            img.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            img.setForeground(new Color(140, 0, 0));
+            img.setHorizontalTextPosition(SwingConstants.CENTER);
+            img.setVerticalTextPosition(SwingConstants.CENTER);
         }
         return img;
     }
@@ -103,29 +123,47 @@ public class ProductCard {
     }
 
     private JPanel buildBtnRow(Product p, JPanel info) {
-        SpinnerNumberModel spinModel = new SpinnerNumberModel(1, 1, 99, 1);
+        boolean outOfStock = p.getQuantity() <= 0;
+
+        SpinnerNumberModel spinModel = new SpinnerNumberModel(
+            1, 1, Math.max(1, p.getQuantity()), 1
+        );
         JSpinner spinner = new JSpinner(spinModel);
         spinner.setMaximumSize(new Dimension(65, 28));
         spinner.setPreferredSize(new Dimension(65, 28));
+        spinner.setEnabled(!outOfStock);
         styleSpinner(spinner);
 
-        JButton addBtn = new JButton("До кошика");
+        JButton addBtn = new JButton(outOfStock ? "Немає" : "До кошика");
         addBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        addBtn.setBackground(colors.ACCENT);
+        addBtn.setBackground(outOfStock ? new Color(180, 180, 190) : colors.ACCENT);
         addBtn.setForeground(Color.WHITE);
         addBtn.setFocusPainted(false);
         addBtn.setBorderPainted(false);
-        addBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        addBtn.setEnabled(!outOfStock);
+        addBtn.setCursor(outOfStock
+            ? Cursor.getDefaultCursor()
+            : Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         addBtn.setBorder(new EmptyBorder(6, 12, 6, 12));
-        addBtn.addMouseListener(new MouseAdapter() {
-            public void mouseEntered(MouseEvent e) { addBtn.setBackground(colors.ACCENT.darker()); }
-            public void mouseExited(MouseEvent e) { addBtn.setBackground(colors.ACCENT); }
-        });
-        addBtn.addActionListener(e -> {
-            cart.addProduct(p, (int) spinner.getValue());
-            dispatcher.dispatch("cart-changed");
-            onToast.accept(p.getName() + " додано до кошика");
-        });
+
+        if (!outOfStock) {
+            addBtn.addMouseListener(new MouseAdapter() {
+                public void mouseEntered(MouseEvent e) { addBtn.setBackground(colors.ACCENT.darker()); }
+                public void mouseExited(MouseEvent e)  { addBtn.setBackground(colors.ACCENT); }
+            });
+            addBtn.addActionListener(e -> {
+                int wanted = (int) spinner.getValue();
+                int added  = cart.addProduct(p, wanted);
+                dispatcher.dispatch("cart-changed");
+                if (added == 0) {
+                    onToast.accept("Досягнуто максимум: " + p.getQuantity() + " шт.");
+                } else if (added < wanted) {
+                    onToast.accept("Додано " + added + " шт. (більше немає в наявності)");
+                } else {
+                    onToast.accept(p.getName() + " додано до кошика");
+                }
+            });
+        }
 
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         row.setBackground(colors.CARD_BG);

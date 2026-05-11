@@ -5,6 +5,7 @@ import UI.HeaderPanel;
 import UI.StatusBar;
 import UI.catalog.CatalogPage;
 import UI.cart.CartPage;
+import UI.admin.AdminPage;
 import core.Cart;
 import core.CartItem;
 import core.Product;
@@ -33,6 +34,7 @@ public class StoreApp {
     private HeaderPanel header;
     private CatalogPage catalog;
     private CartPage cartPage;
+    private AdminPage adminPage;
     private StatusBar statusBar;
 
     // ══════════════════════════════════════════════════════════
@@ -49,9 +51,11 @@ public class StoreApp {
         statusBar = new StatusBar(colors, store.getName());
         header = new HeaderPanel(colors, store, dispatcher, getCardLayout(), getCardContainer());
 
-        catalog = new CatalogPage(colors, store, cart, dispatcher, frame, msg -> statusBar.showToast(msg));
+        catalog = new CatalogPage(colors, store, cart, dispatcher, frame,
+                msg -> statusBar.showToast(msg));
 
-        cartPage = new CartPage(colors, cart, dispatcher, frame, getCardLayout(), getCardContainer(), this::checkout);
+        cartPage = new CartPage(colors, cart, dispatcher, frame,
+                getCardLayout(), getCardContainer(), this::checkout);
 
         // ── Збираємо CardLayout ──
         cardLayout = new CardLayout();
@@ -64,10 +68,12 @@ public class StoreApp {
         header = new HeaderPanel(colors, store, dispatcher, cardLayout, cardContainer);
         cartPage = new CartPage(colors, cart, dispatcher, frame, cardLayout, cardContainer, this::checkout);
         catalog = new CatalogPage(colors, store, cart, dispatcher, frame, msg -> statusBar.showToast(msg));
+        adminPage = new AdminPage(colors, store, dispatcher);
 
         cardContainer.removeAll();
         cardContainer.add(catalog.build(), "catalog");
         cardContainer.add(cartPage.build(), "cart");
+        cardContainer.add(adminPage.build(), "admin");
 
         frame.add(header.build(), BorderLayout.NORTH);
         frame.add(cardContainer, BorderLayout.CENTER);
@@ -112,7 +118,8 @@ public class StoreApp {
 
     private void checkout() {
         if (cart.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(frame, "Ваш кошик порожній!", "Помилка", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(frame, "Ваш кошик порожній!", "Помилка",
+                    JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -121,7 +128,9 @@ public class StoreApp {
         sb.append("           ЗАМОВЛЕННЯ\n");
         sb.append("═══════════════════════════════════\n");
         for (CartItem item : cart.getItems()) {
-            sb.append(String.format("%-26s %8.2f грн%n", item.getProduct().getName() + " x" + item.getQuantity(), item.getSubtotal()));
+            sb.append(String.format("%-26s %8.2f грн%n",
+                item.getProduct().getName() + " x" + item.getQuantity(),
+                item.getSubtotal()));
         }
         sb.append("───────────────────────────────────\n");
         sb.append(String.format("РАЗОМ:%30.2f грн%n", cart.getTotal()));
@@ -135,9 +144,18 @@ public class StoreApp {
         area.setForeground(colors.TEXT);
         area.setBorder(new javax.swing.border.EmptyBorder(12, 12, 12, 12));
 
-        int res = JOptionPane.showConfirmDialog(frame, new JScrollPane(area), "Підтвердження замовлення", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int res = JOptionPane.showConfirmDialog(frame, new JScrollPane(area),
+                "Підтвердження замовлення",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
         if (res == JOptionPane.OK_OPTION) {
+            // ── Оновлюємо кількість в БД ──
+            for (CartItem item : cart.getItems()) {
+                Product p = item.getProduct();
+                int newQty = p.getQuantity() - item.getQuantity();
+                store.getDAO().updateQuantity(p.getId(), Math.max(0, newQty));
+            }
+
             cart.clear();
             dispatcher.dispatch("cart-changed");
             dispatcher.dispatch("products-changed"); // оновлює каталог (картки/кольори)
@@ -148,6 +166,6 @@ public class StoreApp {
 
     // ── Тимчасові заглушки для ініціалізації ──────────────────
     // (потрібні бо header/cartPage отримують cardLayout до його створення)
-    private CardLayout getCardLayout()    { return cardLayout    != null ? cardLayout    : new CardLayout(); }
-    private JPanel     getCardContainer() { return cardContainer != null ? cardContainer : new JPanel(); }
+    private CardLayout getCardLayout()    { return cardLayout != null ? cardLayout : new CardLayout(); }
+    private JPanel getCardContainer() { return cardContainer != null ? cardContainer : new JPanel(); }
 }
